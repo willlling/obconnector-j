@@ -399,6 +399,11 @@ public class OceanBaseStatement implements Statement, Cloneable {
   }
 
     protected BatchUpdateException executeBatchExceptionEpilogue(SQLException initialSqlException, int size,boolean arrayBindingException) {
+        // Transport failure handling can close the statement and clear its protocol.
+        final boolean oracleMode = protocol.isOracleMode();
+        final boolean batchStatement = results != null && results.isExecuteBatchStmt();
+        final boolean rewrittenBatch = results != null && results.getCmdInformation() != null
+                && results.getCmdInformation().getRewrite();
         SQLException sqle = handleFailoverAndTimeout(initialSqlException);
         int[] ret;
         if(arrayBindingException && results != null  && results.getExecutionResults() != null) {
@@ -414,7 +419,7 @@ public class OceanBaseStatement implements Statement, Cloneable {
         } else {
             ret = results.getCmdInformation().getUpdateCounts();
         }
-        if(!protocol.isOracleMode() && results.isExecuteBatchStmt()) {
+        if(!oracleMode && batchStatement) {
             if (!options.continueBatchOnError) {
                 int end = ret.length - 1;
                 int[] tmp = new int[end];
@@ -435,7 +440,7 @@ public class OceanBaseStatement implements Statement, Cloneable {
         } else {
             if (!options.continueBatchOnError) {
                 int end = 0;
-                if (results.getCmdInformation().getRewrite() && !(protocol.isOracleMode() && options.rewriteInsertByMultiQueries)) {
+                if (rewrittenBatch && !(oracleMode && options.rewriteInsertByMultiQueries)) {
                     end = ret.length - 1;
                 } else {
                     for (int i = 0; i < ret.length; i++) {
